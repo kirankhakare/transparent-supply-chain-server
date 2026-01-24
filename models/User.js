@@ -15,7 +15,11 @@ const userSchema = new mongoose.Schema(
     role: {
       type: String,
       enum: ['admin', 'contractor', 'supplier', 'user'],
-      default: 'user'      // 👈 DEFAULT ROLE
+      default: 'user'
+    },
+    isApproved: {
+      type: Boolean,
+      default: true // useful later for supplier approval
     }
   },
   { timestamps: true }
