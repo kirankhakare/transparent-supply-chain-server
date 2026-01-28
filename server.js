@@ -21,6 +21,9 @@ app.use(express.json());
 /* ROUTES */
 app.use('/api/auth', authRoutes);
 app.use('/api/admin',adminRoutes);
+app.use('/api/contractor', require('./routes/contractor.routes'));
+app.use('/api/suppiler', require('./routes/supplier.routes'));
+app.use('/api/user', require('./routes/user.routes'));
 /* TEST ROUTE (IMPORTANT FOR RENDER) */
 app.get('/', (req, res) => {
   res.send('API is running successfully ');

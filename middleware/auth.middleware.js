@@ -1,7 +1,8 @@
 const jwt = require('jsonwebtoken');
+const mongoose = require('mongoose');
 
 /* VERIFY TOKEN */
-exports.verifyToken = (req, res, next) => {
+const verifyToken = (req, res, next) => {
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -12,19 +13,31 @@ exports.verifyToken = (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded; // { id, role }
+
+    req.user = {
+      id: decoded.id,                 // string
+      _id: new mongoose.Types.ObjectId(decoded.id), // ObjectId
+      role: decoded.role,
+    };
+
     next();
-  } catch {
+  } catch (err) {
     return res.status(401).json({ message: 'Invalid token' });
   }
 };
 
 /* ROLE BASED ACCESS */
-exports.allowRoles = (...roles) => {
+const allowRoles = (...roles) => {
   return (req, res, next) => {
-    if (!roles.includes(req.user.role)) {
+    if (!req.user || !roles.includes(req.user.role)) {
       return res.status(403).json({ message: 'Access denied' });
     }
     next();
   };
+};
+
+/* ✅ EXPORT BOTH */
+module.exports = {
+  verifyToken,
+  allowRoles,
 };

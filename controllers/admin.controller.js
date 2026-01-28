@@ -227,16 +227,26 @@ exports.assignContractor = async (req, res) => {
   const { userId, contractorId } = req.body;
 
   try {
-    // remove old assignment if exists
+    // 1️⃣ Assignment (admin view)
     await Assignment.findOneAndDelete({ user: userId });
+    await Assignment.create({ user: userId, contractor: contractorId });
 
-    const assignment = await Assignment.create({
-      user: userId,
-      contractor: contractorId,
-    });
+    // 2️⃣ Site (contractor + real system)
+    await Site.findOneAndUpdate(
+      { user: userId },
+      {
+        user: userId,
+        contractor: contractorId,
+        totalWork: 100,
+        completedWork: 0,
+        deadline: new Date('2025-03-31'),
+      },
+      { upsert: true }
+    );
 
     res.json({ message: 'Contractor assigned successfully' });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ message: 'Assignment failed' });
   }
 };
@@ -285,7 +295,6 @@ exports.getContractorsWithUsers = async (req, res) => {
   }
 };
 
-
 exports.getUsersWithProjectStatus = async (req, res) => {
   try {
     const users = await User.find({ role: 'user' });
@@ -320,7 +329,6 @@ exports.getUsersWithProjectStatus = async (req, res) => {
   }
 };
 
-
 exports.getAllSuppliers = async (req, res) => {
   try {
     const suppliers = await User.find({ role: 'supplier' })
@@ -348,6 +356,18 @@ exports.updateSupplierStatus = async (req, res) => {
   }
 };
 
+exports.supplierPerformance = async (req, res) => {
+  const stats = await MaterialOrder.aggregate([
+    {
+      $group: {
+        _id: '$supplier',
+        totalOrders: { $sum: 1 },
+        delivered: {
+          $sum: { $cond: [{ $eq: ['$status', 'DELIVERED'] }, 1, 0] }
+        }
+      }
+    }
+  ]);
 
-
-
+  res.json(stats);
+};

@@ -39,3 +39,15 @@ exports.login = async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 };
+
+exports.getMe = async (req, res) => {
+  try {
+    res.json({
+      id: req.User.id,
+      username: req.User.username,
+      role: req.User.role,
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to load user' });
+  }
+};
