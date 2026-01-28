@@ -84,26 +84,37 @@ exports.createMaterialOrder = async (req, res) => {
   try {
     const { siteId, supplierId, materials } = req.body;
 
-    if (!siteId || !supplierId || !Array.isArray(materials)) {
+    if (!siteId || !supplierId || !Array.isArray(materials) || materials.length === 0) {
       return res.status(400).json({
         message: 'Invalid request data',
       });
     }
 
-    // ✅ Validate materials server-side
-    for (let m of materials) {
-      if (!m.name || !m.unit || typeof m.quantity !== 'number' || m.quantity <= 0) {
-        return res.status(400).json({
-          message: 'Invalid material data',
-        });
+    // ✅ SANITIZE + VALIDATE MATERIALS
+    const sanitizedMaterials = materials.map((m) => {
+      const quantity = Number(m.quantity);
+
+      if (
+        !m.name ||
+        !m.unit ||
+        isNaN(quantity) ||
+        quantity <= 0
+      ) {
+        throw new Error('Invalid material data');
       }
-    }
+
+      return {
+        name: m.name.trim(),
+        unit: m.unit.trim(),
+        quantity,
+      };
+    });
 
     const order = await MaterialOrder.create({
       site: siteId,
       contractor: req.user.id,
       supplier: supplierId,
-      materials,
+      materials: sanitizedMaterials,
       status: 'PENDING',
     });
 
@@ -112,12 +123,13 @@ exports.createMaterialOrder = async (req, res) => {
       order,
     });
   } catch (err) {
-    console.error('CREATE ORDER ERROR:', err);
-    res.status(500).json({
-      message: 'Failed to create material order',
+    console.error('CREATE ORDER ERROR:', err.message);
+    res.status(400).json({
+      message: err.message || 'Failed to create material order',
     });
   }
 };
+
 
 // controllers/contractor.controller.js
 
