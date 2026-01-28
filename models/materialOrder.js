@@ -32,6 +32,13 @@ const materialOrderSchema = new mongoose.Schema({
     type: String,
     unique: true,
   },
+  deliveryImage: String,
+  supplierMessage: String,
+  delivery: {
+  imageUrl: String,
+  message: String,
+  deliveredAt: Date,
+},
 }, { timestamps: true });
 
 /* 🔥 SAFE PRE SAVE HOOK */

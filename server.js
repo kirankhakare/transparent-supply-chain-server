@@ -24,6 +24,13 @@ app.use('/api/admin',adminRoutes);
 app.use('/api/contractor', require('./routes/contractor.routes'));
 app.use('/api/suppiler', require('./routes/supplier.routes'));
 app.use('/api/user', require('./routes/user.routes'));
+
+const bodyParser = require('body-parser');
+
+app.use(bodyParser.json({ limit: '20mb' }));
+app.use(bodyParser.urlencoded({ extended: true, limit: '20mb' }));
+
+
 /* TEST ROUTE (IMPORTANT FOR RENDER) */
 app.get('/', (req, res) => {
   res.send('API is running successfully ');
