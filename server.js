@@ -3,7 +3,7 @@ require('dotenv').config(); // 👈 MUST be at top
 const express = require('express');
 const cors = require('cors');
 const connectDB = require('./config/db');
-
+const supplierRoutes = require('./routes/supplier.routes');
 const authRoutes = require('./routes/auth.routes');
 const adminRoutes = require('./routes/admin.routes');
 
@@ -22,7 +22,8 @@ app.use(express.json());
 app.use('/api/auth', authRoutes);
 app.use('/api/admin',adminRoutes);
 app.use('/api/contractor', require('./routes/contractor.routes'));
-app.use('/api/suppiler', require('./routes/supplier.routes'));
+app.use('/api/supplier', supplierRoutes);
+
 app.use('/api/user', require('./routes/user.routes'));
 
 const bodyParser = require('body-parser');

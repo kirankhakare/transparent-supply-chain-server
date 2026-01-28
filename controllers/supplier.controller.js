@@ -1,16 +1,14 @@
 const MaterialOrder = require('../models/materialOrder');
 const imagekit = require('../utils/imagekit');
+const User = require('../models/User');
 
-/**
- * GET: Supplier - My Orders
- */
-exports.getMyOrders = async (req, res) => {
+exports.getSupplierOrders = async (req, res) => {
   try {
     const orders = await MaterialOrder.find({
       supplier: req.user.id,
     })
       .populate('site', 'projectName')
-      .populate('contractor', 'username')
+      .populate('contractor', 'username phone')
       .sort({ createdAt: -1 });
 
     res.json(orders);
@@ -25,6 +23,7 @@ exports.getMyOrders = async (req, res) => {
  */
 exports.updateOrderStatus = async (req, res) => {
   const { status } = req.body;
+  const { orderId } = req.params;
 
   if (!['ACCEPTED', 'REJECTED'].includes(status)) {
     return res.status(400).json({ message: 'Invalid status' });
@@ -32,7 +31,7 @@ exports.updateOrderStatus = async (req, res) => {
 
   try {
     const order = await MaterialOrder.findOne({
-      _id: req.params.orderId,
+      _id: orderId,
       supplier: req.user.id,
     });
 
@@ -40,7 +39,6 @@ exports.updateOrderStatus = async (req, res) => {
       return res.status(404).json({ message: 'Order not found' });
     }
 
-    // 🔒 Prevent re-update
     if (order.status !== 'PENDING') {
       return res.status(400).json({
         message: `Order already ${order.status.toLowerCase()}`,
@@ -60,30 +58,40 @@ exports.updateOrderStatus = async (req, res) => {
   }
 };
 
-/**
- * POST: Deliver Order (Upload Image + Mark Delivered)
- */
 exports.deliverOrder = async (req, res) => {
-  const { message } = req.body;
+  const { message, siteName } = req.body;
+  const { orderId } = req.params;
 
   if (!req.file) {
     return res.status(400).json({ message: 'Delivery image required' });
   }
 
+  if (!siteName) {
+    return res.status(400).json({ message: 'Site name is required' });
+  }
+
   try {
     const order = await MaterialOrder.findOne({
-      _id: req.params.orderId,
+      _id: orderId,
       supplier: req.user.id,
-      status: 'ACCEPTED',
     });
 
     if (!order) {
-      return res.status(404).json({
-        message: 'Order not found or not accepted',
+      return res.status(404).json({ message: 'Order not found' });
+    }
+
+    if (order.status !== 'ACCEPTED') {
+      return res.status(400).json({
+        message: 'Only accepted orders can be delivered',
       });
     }
 
-    // 📸 Upload image to ImageKit
+    if (order.status === 'DELIVERED') {
+      return res.status(400).json({
+        message: 'Order already delivered',
+      });
+    }
+
     const upload = await imagekit.upload({
       file: req.file.buffer.toString('base64'),
       fileName: `delivery-${order._id}.jpg`,
@@ -92,9 +100,12 @@ exports.deliverOrder = async (req, res) => {
     order.status = 'DELIVERED';
     order.delivery = {
       imageUrl: upload.url,
+      siteName,
       message,
       deliveredAt: new Date(),
     };
+
+    order.deliveryImage = upload.url; // optional
 
     await order.save();
 
@@ -108,41 +119,36 @@ exports.deliverOrder = async (req, res) => {
   }
 };
 
-/**
- * GET: Assigned Orders (Supplier)
- */
-exports.getAssignedOrders = async (req, res) => {
-  try {
-    const orders = await MaterialOrder.find({
-      supplier: req.user.id,
-    })
-      .populate('site', 'projectName')
-      .populate('contractor', 'username phone')
-      .sort({ createdAt: -1 });
 
-    res.json(orders);
-  } catch (err) {
-    console.error('SUPPLIER FETCH ORDERS ERROR:', err);
-    res.status(500).json({ message: 'Failed to fetch orders' });
-  }
-};
 
 exports.getSupplierSites = async (req, res) => {
   try {
-    const sites = await MaterialOrder.find({
+    // 1️⃣ supplier च्या orders मधून site user IDs काढ
+    const orders = await MaterialOrder.find({
       supplier: req.user.id,
-    })
-      .populate('site', 'projectName')
-      .select('site');
+    }).select('site'); // site = userId
 
-    const unique = new Map();
-    sites.forEach(o => {
-      if (o.site) unique.set(o.site._id.toString(), o.site);
-    });
+    const siteIds = [
+      ...new Set(
+        orders
+          .map(o => o.site?.toString())
+          .filter(Boolean)
+      ),
+    ];
 
-    res.json(Array.from(unique.values()));
+    if (siteIds.length === 0) {
+      return res.json([]);
+    }
+
+    // 2️⃣ Users (sites) fetch कर
+    const sites = await User.find({
+      _id: { $in: siteIds },
+      role: 'user',
+    }).select('username');
+
+    res.json(sites);
   } catch (err) {
-    console.error(err);
+    console.error('SUPPLIER SITES ERROR:', err);
     res.status(500).json({ message: 'Failed to load sites' });
   }
 };

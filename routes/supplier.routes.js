@@ -2,22 +2,15 @@ const express = require('express');
 const router = express.Router();
 const supplierCtrl = require('../controllers/supplier.controller');
 const { verifyToken, allowRoles } = require('../middleware/auth.middleware');
+const upload = require('../middleware/multer'); // ✅ ADD THIS
 
-/**
- * GET all orders assigned to supplier
- * URL: /api/supplier/orders
- */
 router.get(
   '/orders',
   verifyToken,
   allowRoles('supplier'),
-  supplierCtrl.getMyOrders
+  supplierCtrl.getSupplierOrders
 );
 
-/**
- * UPDATE order status (ACCEPT / REJECT)
- * URL: /api/supplier/order/:orderId/status
- */
 router.put(
   '/order/:orderId/status',
   verifyToken,
@@ -25,14 +18,11 @@ router.put(
   supplierCtrl.updateOrderStatus
 );
 
-/**
- * DELIVER order
- * URL: /api/supplier/order/:orderId/deliver
- */
 router.post(
   '/order/:orderId/deliver',
   verifyToken,
   allowRoles('supplier'),
+  upload.single('image'), 
   supplierCtrl.deliverOrder
 );
 
@@ -42,6 +32,5 @@ router.get(
   allowRoles('supplier'),
   supplierCtrl.getSupplierSites
 );
-
 
 module.exports = router;
