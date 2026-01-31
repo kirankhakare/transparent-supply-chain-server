@@ -46,6 +46,6 @@ router.get(
 );
 
 router.get('/suppliers', verifyToken, adminCtrl.getAllSuppliers);
-router.patch('/suppliers/:id/status',verifyToken, adminCtrl.updateSupplierStatus);
+router.put('/suppliers/:id/status',verifyToken, adminCtrl.updateSupplierStatus);
 
 module.exports = router;

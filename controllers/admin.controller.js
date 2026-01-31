@@ -1,9 +1,9 @@
 const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 const Site = require('../models/site');
-const Cost = require('../models/cost');
 const Assignment = require('../models/assignment');
 const { getProjectStatus } = require('../utils/projectStatus');
+const ChatRoom = require('../models/chatRoom');
 
 /* CREATE USER BY ADMIN */
 exports.createUser = async (req, res) => {
@@ -227,26 +227,45 @@ exports.assignContractor = async (req, res) => {
   const { userId, contractorId } = req.body;
 
   try {
-    // 1️⃣ Assignment (admin view)
+    // 1️⃣ Assignment
     await Assignment.findOneAndDelete({ user: userId });
-    await Assignment.create({ user: userId, contractor: contractorId });
+    await Assignment.create({
+      user: userId,
+      contractor: contractorId,
+    });
 
-    // 2️⃣ Site (contractor + real system)
-    await Site.findOneAndUpdate(
+    // 2️⃣ Site (IMPORTANT: new: true)
+    const site = await Site.findOneAndUpdate(
       { user: userId },
       {
         user: userId,
         contractor: contractorId,
         totalWork: 100,
         completedWork: 0,
-        deadline: new Date('2025-03-31'),
       },
-      { upsert: true }
+      { upsert: true, new: true }
     );
 
-    res.json({ message: 'Contractor assigned successfully' });
+    console.log('✅ SITE CREATED:', site._id);
+
+    // 3️⃣ ChatRoom (🔥 THIS WAS MISSING / FAILING)
+    const room = await ChatRoom.findOneAndUpdate(
+      { site: site._id },
+      {
+        site: site._id,
+        user: site.user,
+        contractor: site.contractor,
+      },
+      { upsert: true, new: true }
+    );
+
+    console.log('✅ CHAT ROOM CREATED:', room._id);
+
+    res.json({
+      message: 'Contractor assigned & chat room created',
+    });
   } catch (err) {
-    console.error(err);
+    console.error('❌ ASSIGN ERROR:', err);
     res.status(500).json({ message: 'Assignment failed' });
   }
 };
@@ -370,4 +389,18 @@ exports.supplierPerformance = async (req, res) => {
   ]);
 
   res.json(stats);
+};
+
+exports.getAllOrders = async (req, res) => {
+  try {
+    const orders = await MaterialOrder.find()
+      .populate('supplier', 'username')
+      .populate('contractor', 'username')
+      .populate('site', 'projectName')
+      .sort({ createdAt: -1 });
+
+    res.json(orders);
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to load orders' });
+  }
 };

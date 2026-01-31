@@ -40,14 +40,21 @@ exports.login = async (req, res) => {
   }
 };
 
+// controllers/auth.controller.js
+
 exports.getMe = async (req, res) => {
   try {
-    res.json({
-      id: req.User.id,
-      username: req.User.username,
-      role: req.User.role,
-    });
+    const user = await User.findById(req.user.id)
+      .select('_id username role');
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.json(user);
   } catch (err) {
-    res.status(500).json({ message: 'Failed to load user' });
+    console.error('GET ME ERROR:', err);
+    res.status(500).json({ message: 'Failed to fetch user info' });
   }
 };
+

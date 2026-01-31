@@ -1,113 +1,125 @@
+// controllers/supplier.controller.js
 const MaterialOrder = require('../models/materialOrder');
-const imagekit = require('../utils/imagekit');
-const User = require('../models/User');
 
-exports.getSupplierOrders = async (req, res) => {
+/* ================= GET MY ORDERS ================= */
+exports.getMyOrders = async (req, res) => {
   try {
     const orders = await MaterialOrder.find({
       supplier: req.user.id,
     })
       .populate('site', 'projectName')
-      .populate('contractor', 'username phone')
+      .populate('contractor', 'username')
       .sort({ createdAt: -1 });
 
     res.json(orders);
   } catch (err) {
-    console.error('SUPPLIER GET ORDERS ERROR:', err);
-    res.status(500).json({ message: 'Failed to fetch supplier orders' });
+    res.status(500).json({ message: 'Failed to fetch orders' });
   }
 };
 
-/**
- * PATCH: Accept / Reject Order
- */
-exports.updateOrderStatus = async (req, res) => {
-  const { status } = req.body;
-  const { orderId } = req.params;
 
-  if (!['ACCEPTED', 'REJECTED'].includes(status)) {
-    return res.status(400).json({ message: 'Invalid status' });
-  }
-
+/* ================= ORDER DETAILS ================= */
+exports.getOrderDetails = async (req, res) => {
   try {
     const order = await MaterialOrder.findOne({
-      _id: orderId,
+      _id: req.params.id,
       supplier: req.user.id,
-    });
+    })
+      .populate('site', 'projectName')
+      .populate('contractor', 'username phone');
 
     if (!order) {
       return res.status(404).json({ message: 'Order not found' });
     }
 
-    if (order.status !== 'PENDING') {
+    res.json(order);
+  } catch (err) {
+    console.error('ORDER DETAILS ERROR:', err);
+    res.status(500).json({ message: 'Failed to fetch order' });
+  }
+};
+
+/* ================= ACCEPT ORDER ================= */
+exports.acceptOrder = async (req, res) => {
+  try {
+    const order = await MaterialOrder.findOneAndUpdate(
+      {
+        _id: req.params.id,
+        supplier: req.user.id,
+        status: 'PENDING',
+      },
+      { status: 'ACCEPTED' },
+      { new: true }
+    );
+
+    if (!order) {
       return res.status(400).json({
-        message: `Order already ${order.status.toLowerCase()}`,
+        message: 'Order not found or already processed',
       });
     }
 
-    order.status = status;
-    await order.save();
-
-    res.json({
-      message: `Order ${status.toLowerCase()} successfully`,
-      order,
-    });
+    res.json(order);
   } catch (err) {
-    console.error('ORDER STATUS UPDATE ERROR:', err);
-    res.status(500).json({ message: 'Failed to update order status' });
+    res.status(500).json({ message: 'Failed to accept order' });
+  }
+};
+
+/* ================= DISPATCH ORDER ================= */
+exports.dispatchOrder = async (req, res) => {
+  try {
+    const order = await MaterialOrder.findOneAndUpdate(
+      {
+        _id: req.params.id,
+        supplier: req.user.id,
+        status: 'ACCEPTED',
+      },
+      { status: 'DISPATCHED' },
+      { new: true }
+    );
+
+    if (!order) {
+      return res.status(400).json({
+        message: 'Order must be ACCEPTED before dispatch',
+      });
+    }
+
+    res.json(order);
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to dispatch order' });
   }
 };
 
 exports.deliverOrder = async (req, res) => {
-  const { message, siteName } = req.body;
-  const { orderId } = req.params;
-
-  if (!req.file) {
-    return res.status(400).json({ message: 'Delivery image required' });
-  }
-
-  if (!siteName) {
-    return res.status(400).json({ message: 'Site name is required' });
-  }
-
   try {
-    const order = await MaterialOrder.findOne({
-      _id: orderId,
-      supplier: req.user.id,
-    });
+    const { imageUrl, message } = req.body;
+
+    if (!imageUrl) {
+      return res.status(400).json({
+        message: 'Delivery image is required',
+      });
+    }
+
+    const order = await MaterialOrder.findOneAndUpdate(
+      {
+        _id: req.params.id,
+        supplier: req.user.id, // 🔒 SECURITY
+      },
+      {
+        status: 'DELIVERED',
+        delivery: {
+          imageUrl,            // ✅ STORED ORDER WISE
+          message,
+          deliveredAt: new Date(),
+        },
+      },
+      { new: true }
+    );
 
     if (!order) {
-      return res.status(404).json({ message: 'Order not found' });
-    }
-
-    if (order.status !== 'ACCEPTED') {
-      return res.status(400).json({
-        message: 'Only accepted orders can be delivered',
+      return res.status(404).json({
+        message: 'Order not found',
       });
     }
-
-    if (order.status === 'DELIVERED') {
-      return res.status(400).json({
-        message: 'Order already delivered',
-      });
-    }
-
-    const upload = await imagekit.upload({
-      file: req.file.buffer.toString('base64'),
-      fileName: `delivery-${order._id}.jpg`,
-    });
-
-    order.status = 'DELIVERED';
-    order.delivery = {
-      imageUrl: upload.url,
-      siteName,
-      message,
-      deliveredAt: new Date(),
-    };
-
-    order.deliveryImage = upload.url; // optional
-
-    await order.save();
 
     res.json({
       message: 'Order delivered successfully',
@@ -115,40 +127,8 @@ exports.deliverOrder = async (req, res) => {
     });
   } catch (err) {
     console.error('DELIVERY ERROR:', err);
-    res.status(500).json({ message: 'Delivery failed' });
-  }
-};
-
-
-
-exports.getSupplierSites = async (req, res) => {
-  try {
-    // 1️⃣ supplier च्या orders मधून site user IDs काढ
-    const orders = await MaterialOrder.find({
-      supplier: req.user.id,
-    }).select('site'); // site = userId
-
-    const siteIds = [
-      ...new Set(
-        orders
-          .map(o => o.site?.toString())
-          .filter(Boolean)
-      ),
-    ];
-
-    if (siteIds.length === 0) {
-      return res.json([]);
-    }
-
-    // 2️⃣ Users (sites) fetch कर
-    const sites = await User.find({
-      _id: { $in: siteIds },
-      role: 'user',
-    }).select('username');
-
-    res.json(sites);
-  } catch (err) {
-    console.error('SUPPLIER SITES ERROR:', err);
-    res.status(500).json({ message: 'Failed to load sites' });
+    res.status(500).json({
+      message: 'Delivery failed',
+    });
   }
 };

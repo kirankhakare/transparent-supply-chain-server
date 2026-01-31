@@ -1,36 +1,19 @@
+// routes/supplier.routes.js
 const express = require('express');
 const router = express.Router();
-const supplierCtrl = require('../controllers/supplier.controller');
+const ctrl = require('../controllers/supplier.controller');
 const { verifyToken, allowRoles } = require('../middleware/auth.middleware');
-const upload = require('../middleware/multer'); // ✅ ADD THIS
 
-router.get(
-  '/orders',
-  verifyToken,
-  allowRoles('supplier'),
-  supplierCtrl.getSupplierOrders
-);
+/* 🔐 SUPPLIER ONLY */
+router.use(verifyToken, allowRoles('supplier'));
 
-router.put(
-  '/order/:orderId/status',
-  verifyToken,
-  allowRoles('supplier'),
-  supplierCtrl.updateOrderStatus
-);
+/* ORDERS */
+router.get('/orders', ctrl.getMyOrders);
+router.get('/orders/:id', ctrl.getOrderDetails);
 
-router.post(
-  '/order/:orderId/deliver',
-  verifyToken,
-  allowRoles('supplier'),
-  upload.single('image'), 
-  supplierCtrl.deliverOrder
-);
-
-router.get(
-  '/sites',
-  verifyToken,
-  allowRoles('supplier'),
-  supplierCtrl.getSupplierSites
-);
+/* STATUS ACTIONS */
+router.put('/orders/:id/accept', ctrl.acceptOrder);
+router.put('/orders/:id/dispatch', ctrl.dispatchOrder);
+router.put('/orders/:id/deliver', ctrl.deliverOrder);
 
 module.exports = router;

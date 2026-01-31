@@ -1,4 +1,3 @@
-// models/expense.js
 const mongoose = require('mongoose');
 
 const expenseSchema = new mongoose.Schema(
@@ -23,18 +22,16 @@ const expenseSchema = new mongoose.Schema(
 
     description: {
       type: String,
-      trim: true,
     },
 
     amount: {
       type: Number,
       required: true,
-      min: 0,
+      min: 1,
     },
 
     paidTo: {
       type: String,
-      trim: true,
     },
 
     payment: {
